@@ -1,0 +1,17 @@
+hostUrl: "http://127.0.0.1"
+socketLabs:
+  enable: false
+  serverId: 12345
+  clientId: ""
+  from: "test@example.com"
+twilio:
+  enable: false
+  accountSid: ""
+  authToken: ""
+  from: "+1xxxXXXxxxx"
+discord:
+  enable: false
+  url: ""
+serial:
+  enable: false
+  port: "COM1"

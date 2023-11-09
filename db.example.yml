@@ -1,0 +1,19 @@
+'3001':
+  tone1: 349.0
+  tone2: 433.7
+  relayNumber: 0 #Use 0 if not using serial
+  users:
+    - email: test@example.com
+      name: Me
+      phone: '+1xxxXXXxxxx'
+'Antarctica Fire':
+  tone1: 1006.1
+  tone2: 510.5
+  relayNumber: 1
+  users:
+    - email: test@example.com
+      name: Me
+      phone: '+1xxxXXXxxxx'
+    - email: test2@example.com
+      name: Me2
+      phone: '+1xxxXXXxxxx'

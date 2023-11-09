@@ -1,0 +1,5 @@
+audio_clips/*.mp3
+audio_clips/*.wav
+db.yml
+config.yml
+*.exe
