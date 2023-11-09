@@ -7,6 +7,8 @@ SQUELCH = -70.
 
 import sys
 import threading
+import queue
+
 
 from socketlabs.injectionapi import SocketLabsClient
 from socketlabs.injectionapi.message.basicmessage import BasicMessage
@@ -326,6 +328,7 @@ def schmitt(data, rate):
 def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
     return abs(a - b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
 
+alert_queue = queue.Queue()
 
 def measure_tones():
     chunk = 2048
@@ -411,34 +414,40 @@ def measure_tones():
                         tone2_db = dept_info['tone2']
 
                         if isclose(tone1, tone1_db, abs_tol=15.0) and isclose(tone2, tone2_db, abs_tol=15.0):
-                            print(f"Alert Active for department: {dept_id}")
-                            tone1 = 0.0
-                            tone2 = 0.0
-                            if (config['localAudioAlert']):
-                                alert_thread = threading.Thread(target=play_sound_and_bridge,
-                                                                args=("E:/ToneTonePage/Minitor_alert.wav",))
-                                alert_thread.start()
-
-                            sendDiscordWebhook(dept_id)
-
-                            if (config["serial"]["enable"] and not dept_info["relayNumber"] == 0):
-                                send_command(ser, "on", dept_info["relayNumber"])
-                            for user in dept_info['users']:
-                                activateAlert(user, dept_id)
-                            audio_path_wav = save_audio_clip(dept_info)
+                            # Instead of directly handling the alert, put it in the queue
+                            alert_queue.put((dept_id, dept_info))
 
         if initial_tone_time and (time.time() - initial_tone_time > 4):
             # print("Tone out of sync detect. Reset.")
             tone1 = 0.0
             tone2 = 0.0
             toneIndex = -1
-            nitial_tone_time = None
+            initial_tone_time = None
 
-    if not wavfile:
-        stream.close()
-        pa.terminate()
-    else:
-        wav.close()
+def handle_alerts():
+    while True:
+        dept_id, dept_info = alert_queue.get()
+
+        if config['localAudioAlert']:
+            alert_thread = threading.Thread(target=play_sound_and_bridge,
+                                            args=("E:/ToneTonePage/Minitor_alert.wav",))
+            alert_thread.start()
+
+            sendDiscordWebhook(dept_id)
+
+        if (config["serial"]["enable"] and not dept_info["relayNumber"] == 0):
+            send_command(ser, "on", dept_info["relayNumber"])
+            for user in dept_info['users']:
+                activateAlert(user, dept_id)
+        audio_path_wav = save_audio_clip(dept_info)
+
+        alert_queue.task_done()
+
+   # if not wavfile:
+   #     stream.close()
+   #     pa.terminate()
+   # else:
+   #     wav.close()
 
 
 if __name__ == "__main__":
@@ -446,7 +455,13 @@ if __name__ == "__main__":
         all_statuses = {}
         if (config["serial"]["enable"]):
             ser = init_serial(config["serial"]["port"])
-        measure_tones()
+
+        tone_detection_thread = threading.Thread(target=measure_tones)
+        tone_detection_thread.daemon = True
+        tone_detection_thread.start()
+
+        handle_alerts()
+
     except KeyboardInterrupt:
         print("Exiting")
     finally:
