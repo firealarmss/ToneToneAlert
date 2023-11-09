@@ -1,4 +1,4 @@
-#Portions of this software Copyright https://github.com/syastrov/twotonedecoder
+# Portions of this software Copyright https://github.com/syastrov/twotonedecoder
 NUM_TONES = 2
 MIN_TONE_FREQUENCY_DIFFERENCE = 10.0
 MIN_TONE_LENGTH = 1.000
@@ -6,6 +6,7 @@ MAX_TONE_FREQ_STD_DEVIATION = 15.0
 SQUELCH = -70.
 
 import sys
+import threading
 
 from socketlabs.injectionapi import SocketLabsClient
 from socketlabs.injectionapi.message.basicmessage import BasicMessage
@@ -24,6 +25,8 @@ import base64
 import yaml
 import serial
 import numpy
+from playsound import playsound
+
 
 with open('db.yml', 'r') as file:
     departments = yaml.load(file, Loader=yaml.FullLoader)
@@ -74,17 +77,17 @@ RESPONSES = {
     }
 }
 
-
 chunk = 2048
 
 p = pyaudio.PyAudio()
-
 
 stream = p.open(format=pyaudio.paInt16,
                 channels=1,
                 rate=44100,
                 input=True,
+                #output=True,
                 frames_per_buffer=chunk)
+
 
 #
 # requests.post('https://api.mynotifier.app', {
@@ -97,6 +100,7 @@ stream = p.open(format=pyaudio.paInt16,
 def init_serial(port, baudrate=9600):
     return serial.Serial(port, baudrate, timeout=1)
 
+
 def parse_relay_response(response):
     for state, relays in RESPONSES.items():
         for relay_num, relay_response in relays.items():
@@ -104,9 +108,11 @@ def parse_relay_response(response):
                 return relay_num, state
     return None, None
 
+
 def compute_checksum(byte_array):
     cmd_bytes = byte_array.copy()
     return sum(cmd_bytes) & 0xFF
+
 
 def send_command(ser, command, relay_num=None):
     if not relay_num:
@@ -122,6 +128,7 @@ def send_command(ser, command, relay_num=None):
     print(f"Sent command: {command} for relay {relay_num}, Response: {parsedResponse}")
     return response
 
+
 def parse_status_response(response):
     statuses = {}
 
@@ -135,10 +142,13 @@ def parse_status_response(response):
 
     return statuses
 
+
 def convertToBase64(data):
     base64_encoded = base64.b64encode(data)
 
     return f"data:audio/wav;base64,{base64_encoded.decode('utf-8')}"
+
+
 def save_audio_clip(dept_info):
     frames = []
 
@@ -177,6 +187,8 @@ def save_audio_clip(dept_info):
         phoneCall(f"{hostUrl}{current_datetime}.mp3", user['phone'], user['name'])
 
     return audio_file_path_wav
+
+
 def sendDiscordWebhook(dept_id):
     if (config["discord"]["enable"]):
         current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M")
@@ -199,6 +211,7 @@ def sendDiscordWebhook(dept_id):
         else:
             print("Failed to send Discord webhook")
 
+
 def sendText(date_url, to, name):
     if (config["twilio"]["enable"]):
         current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M")
@@ -206,19 +219,22 @@ def sendText(date_url, to, name):
         textClient = Client(account_sid, auth_token)
         message = textClient.messages \
             .create(
-                body="New off duty alert for " + name + ". Listen to call info: " + date_url + "       (Allow up to 20 seconds for audio to be available)",
-                from_=config["twilio"]["from"],
-                to=to
-            )
+            body="New off duty alert for " + name + ". Listen to call info: " + date_url + "       (Allow up to 20 seconds for audio to be available)",
+            from_=config["twilio"]["from"],
+            to=to
+        )
+
+
 def phoneCall(date_url, to, name):
     if (config["twilio"]["enable"]):
         client = Client(account_sid, auth_token)
 
         call = client.calls.create(
-                                url=date_url,
-                                to=to,
-                                from_=config["twilio"]["from"]
-                            )
+            url=date_url,
+            to=to,
+            from_=config["twilio"]["from"]
+        )
+
 
 def sendEmail(date_url, to, name):
     if (config["socketLabs"]["enable"]):
@@ -229,6 +245,8 @@ def sendEmail(date_url, to, name):
         message.from_email_address = EmailAddress(config["socketLabs"]["from"])
         message.to_email_address.append(EmailAddress(to))
         response = client.send(message)
+
+
 def activateAlert(user, dept_id):
     current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M")
 
@@ -240,48 +258,75 @@ def activateAlert(user, dept_id):
         user['name']
     )
     time.sleep(1)
+
+def play_sound_and_bridge(audio_file_path):
+    playsound(audio_file_path)
+
+    bridge_stream = p.open(format=pyaudio.paInt16,
+                           channels=1,
+                           rate=44100,
+                           input=True,
+                           output=True,
+                           frames_per_buffer=chunk)
+
+    start_time = time.time()
+
+    while time.time() - start_time < 25:
+        data = bridge_stream.read(chunk)
+        bridge_stream.write(data, chunk)
+
+    bridge_stream.stop_stream()
+    bridge_stream.close()
+    print("Finished bridging audio.")
+
+
+
 def schmitt(data, rate):
-  loudness = numpy.sqrt(numpy.sum((data/32768.)**2)) / float(len(data))
-  rms = 20.0 * numpy.log10(loudness)
-  if rms < SQUELCH:
-    return -1
+    loudness = numpy.sqrt(numpy.sum((data / 32768.) ** 2)) / float(len(data))
+    rms = 20.0 * numpy.log10(loudness)
+    if rms < SQUELCH:
+        return -1
 
-  blockSize = len(data) - 1
+    blockSize = len(data) - 1
 
-  freq = 0.
-  trigfact = 0.6
+    freq = 0.
+    trigfact = 0.6
 
-  schmittBuffer = data
+    schmittBuffer = data
 
-  A1 = max(schmittBuffer)
-  A2 = min(schmittBuffer)
+    A1 = max(schmittBuffer)
+    A2 = min(schmittBuffer)
 
-  t1 = round(A1 * trigfact)
-  t2 = round(A2 * trigfact)
+    t1 = round(A1 * trigfact)
+    t2 = round(A2 * trigfact)
 
-  startpoint = -1
-  endpoint = 0
-  schmittTriggered = 0
-  tc = 0
-  for j in range(0, blockSize):
-    if not schmittTriggered:
-      schmittTriggered = (schmittBuffer[j] >= t1)
-    elif schmittBuffer[j] >= t2 and schmittBuffer[j+1] < t2:
-      schmittTriggered = 0
-      if startpoint == -1:
-        tc = 0
-        startpoint = j
-        endpoint = startpoint+1
-      else:
-        endpoint = j
-        tc += 1
+    startpoint = -1
+    endpoint = 0
+    schmittTriggered = 0
+    tc = 0
+    for j in range(0, blockSize):
+        if not schmittTriggered:
+            schmittTriggered = (schmittBuffer[j] >= t1)
+        elif schmittBuffer[j] >= t2 and schmittBuffer[j + 1] < t2:
+            schmittTriggered = 0
+            if startpoint == -1:
+                tc = 0
+                startpoint = j
+                endpoint = startpoint + 1
+            else:
+                endpoint = j
+                tc += 1
 
-  if endpoint > startpoint:
-    freq = rate * (tc / float(endpoint - startpoint))
+    if endpoint > startpoint:
+        freq = rate * (tc / float(endpoint - startpoint))
 
-  return freq
+    return freq
+
+
 def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
-    return abs(a-b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
+    return abs(a - b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
+
+
 def measure_tones():
     chunk = 2048
     initial_tone_time = None
@@ -294,17 +339,18 @@ def measure_tones():
     if not wavfile:
         pa = pyaudio.PyAudio()
         input_device_index = pa.get_default_host_api_info()['defaultInputDevice']
-      #  print(input_device_index)
+        #  print(input_device_index)
         FORMAT = pyaudio.paInt16
         channels = 1
         rate = 44100
 
         stream = pa.open(format=FORMAT,
-                        channels=channels,
-                        rate=rate,
-                        input=True,
-       #                 input_device_index=input_device_index,
-                        frames_per_buffer=chunk)
+                         channels=channels,
+                         rate=rate,
+                         input=True,
+                         #output=True,
+                         #                 input_device_index=input_device_index,
+                         frames_per_buffer=chunk)
     else:
         import wave
         wav = wave.open(wavfile, 'r')
@@ -347,19 +393,19 @@ def measure_tones():
                         print("Reset")
                     lastFreq = mean
                     print("Detected Frequency: {:.2f} Hz (Tone {})".format(mean, toneIndex + 1))
-		    
+
                     if (toneIndex + 1 == 1):
                         tone1 = mean
                         initial_tone_time = time.time()
-                    elif(toneIndex + 1 == 2):
+                    elif (toneIndex + 1 == 2):
                         tone2 = mean
-                    else :
+                    else:
                         print("Tone out of sync detected. Resetting tones")
                     print("Detected: " + str(tone1) + " : " + str(tone2))
 
-                  # print("INITIAL TONE: " + str(initial_tone_time))
-                  # print("TIME: " + str(time.time()))
-                  # print("TIME - INITIAL" + str(initial_tone_time - time.time() < 1.5 ))
+                    # print("INITIAL TONE: " + str(initial_tone_time))
+                    # print("TIME: " + str(time.time()))
+                    # print("TIME - INITIAL" + str(initial_tone_time - time.time() < 1.5 ))
                     for dept_id, dept_info in departments.items():
                         tone1_db = dept_info['tone1']
                         tone2_db = dept_info['tone2']
@@ -368,20 +414,25 @@ def measure_tones():
                             print(f"Alert Active for department: {dept_id}")
                             tone1 = 0.0
                             tone2 = 0.0
+                            if (config['localAudioAlert']):
+                                alert_thread = threading.Thread(target=play_sound_and_bridge,
+                                                                args=("E:/ToneTonePage/Minitor_alert.wav",))
+                                alert_thread.start()
+
                             sendDiscordWebhook(dept_id)
+
                             if (config["serial"]["enable"] and not dept_info["relayNumber"] == 0):
                                 send_command(ser, "on", dept_info["relayNumber"])
                             for user in dept_info['users']:
                                 activateAlert(user, dept_id)
                             audio_path_wav = save_audio_clip(dept_info)
+
         if initial_tone_time and (time.time() - initial_tone_time > 4):
-           # print("Tone out of sync detect. Reset.")
+            # print("Tone out of sync detect. Reset.")
             tone1 = 0.0
             tone2 = 0.0
             toneIndex = -1
             nitial_tone_time = None
-
-
 
     if not wavfile:
         stream.close()
@@ -389,8 +440,14 @@ def measure_tones():
     else:
         wav.close()
 
+
 if __name__ == "__main__":
-    all_statuses = {}
-    if (config["serial"]["enable"]):
-        ser = init_serial(config["serial"]["port"])
-    measure_tones()
+    try:
+        all_statuses = {}
+        if (config["serial"]["enable"]):
+            ser = init_serial(config["serial"]["port"])
+        measure_tones()
+    except KeyboardInterrupt:
+        print("Exiting")
+    finally:
+        p.terminate()
