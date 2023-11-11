@@ -1,4 +1,9 @@
+# Caleb, KO4UYJ
+#
+# Tone detection software geared towards fire department style alerting
+#
 # Portions of this software Copyright https://github.com/syastrov/twotonedecoder
+
 NUM_TONES = 2
 MIN_TONE_FREQUENCY_DIFFERENCE = 10.0
 MIN_TONE_LENGTH = 1.000
@@ -9,6 +14,10 @@ import sys
 import threading
 import queue
 
+import tkinter as tk
+from tkinter import *
+from tkinter import ttk
+from tkinter.font import Font
 
 from socketlabs.injectionapi import SocketLabsClient
 from socketlabs.injectionapi.message.basicmessage import BasicMessage
@@ -99,8 +108,111 @@ stream = p.open(format=pyaudio.paInt16,
 #     "type": "warning", # info, error, warning or success
 # })
 
+def on_button_click():
+    pass
+
+def setup_gui(root):
+    global activeAlert, tone1_box, tone2_box, user_management_frame, alert_frame, tone_frame
+
+    custom_font = Font(family="Helvetica", size=20)
+
+    style = ttk.Style()
+    style.theme_use('clam')
+    style.configure('TEntry', foreground='#333', font=custom_font)
+    style.configure('TButton', font=custom_font, background='#5DADE2', foreground='#FFF')
+
+    notebook = ttk.Notebook(root)
+    notebook.pack(expand=True, fill='both')
+
+    tone_frame = ttk.Frame(notebook, padding="10")
+    alert_frame = ttk.Frame(notebook, padding="10")
+
+    notebook.add(tone_frame, text='Tones')
+    notebook.add(alert_frame, text='Alerts')
+
+    user_management_frame = ttk.Frame(notebook, padding="10")
+    notebook.add(user_management_frame, text='Manage Users')
+
+    audio_settings_frame = ttk.Frame(notebook, padding="10")
+    notebook.add(audio_settings_frame, text='Audio Settings')
+
+    setup_user_management_tab(user_management_frame, root)
+
+    setup_audio_settings_tab(audio_settings_frame)
+
+    ttk.Label(tone_frame, text="Tone 1:", font=custom_font).grid(row=0, column=0, padx=5)
+    tone1_box = ttk.Entry(tone_frame, style='TEntry', width=15)
+    tone1_box.grid(row=0, column=1, padx=5)
+
+    ttk.Label(tone_frame, text="Tone 2:", font=custom_font).grid(row=1, column=0, padx=5)
+    tone2_box = ttk.Entry(tone_frame, style='TEntry', width=15)
+    tone2_box.grid(row=1, column=1, padx=5)
+
+    ttk.Label(alert_frame, text="Active Alert:", font=custom_font).grid(row=0, column=0, padx=5)
+    activeAlert = tk.Text(alert_frame, height=15, width=50, font=custom_font)
+    activeAlert.grid(row=1, column=0, padx=5)
+
+def setup_audio_settings_tab(frame):
+    global selected_mic_var, selected_speaker_var
+    selected_mic_var = tk.StringVar()
+    selected_speaker_var = tk.StringVar()
+
+    ttk.Label(frame, text="Microphone Settings").grid(row=0, column=0, padx=5, pady=5)
+    ttk.Label(frame, text="Speaker Settings").grid(row=0, column=1, padx=5, pady=5)
+
+    mic_menu = ttk.Combobox(frame, textvariable=selected_mic_var)
+    mic_menu.grid(row=1, column=0, padx=5, pady=5)
+
+    speaker_menu = ttk.Combobox(frame, textvariable=selected_speaker_var)
+    speaker_menu.grid(row=1, column=1, padx=5, pady=5)
+
+    pa = pyaudio.PyAudio()
+    mic_devices = []
+    speaker_devices = []
+    for i in range(pa.get_device_count()):
+        device_info = pa.get_device_info_by_index(i)
+        if device_info['maxInputChannels'] > 0:
+            mic_devices.append(device_info.get('name'))
+        if device_info['maxOutputChannels'] > 0:
+            speaker_devices.append(device_info.get('name'))
+
+    mic_menu['values'] = mic_devices
+    speaker_menu['values'] = speaker_devices
+
+    if mic_devices:
+        selected_mic_var.set(mic_devices[0])
+    if speaker_devices:
+        selected_speaker_var.set(speaker_devices[0])
+
+    save_button = ttk.Button(frame, text="Save Settings", command=save_audio_settings)
+    save_button.grid(row=2, column=0, columnspan=2, padx=5, pady=5)
+
+def save_audio_settings():
+    selected_mic = selected_mic_var.get()
+    selected_speaker = selected_speaker_var.get()
+    print(f"Selected Microphone: {selected_mic}")
+    print(f"Selected Speaker: {selected_speaker}")
+
 def init_serial(port, baudrate=9600):
     return serial.Serial(port, baudrate, timeout=1)
+
+def flash_background(frame):
+    flash_duration = 5000
+    flash_interval = 350
+    end_time = time.time() + flash_duration / 1000
+    style = ttk.Style()
+
+    def change_color():
+        if time.time() > end_time:
+            style.configure('Flash.TFrame', background='SystemButtonFace')
+            return
+        current_color = style.lookup('Flash.TFrame', 'background')
+        new_color = 'red' if current_color != 'red' else 'SystemButtonFace'
+        style.configure('Flash.TFrame', background=new_color)
+        frame.after(flash_interval, change_color)
+
+    frame.configure(style='Flash.TFrame')
+    change_color()
 
 
 def parse_relay_response(response):
@@ -150,7 +262,6 @@ def convertToBase64(data):
 
     return f"data:audio/wav;base64,{base64_encoded.decode('utf-8')}"
 
-
 def save_audio_clip(dept_info):
     frames = []
 
@@ -189,7 +300,6 @@ def save_audio_clip(dept_info):
         phoneCall(f"{hostUrl}{current_datetime}.mp3", user['phone'], user['name'])
 
     return audio_file_path_wav
-
 
 def sendDiscordWebhook(dept_id):
     if (config["discord"]["enable"]):
@@ -252,7 +362,6 @@ def sendEmail(date_url, to, name):
 def activateAlert(user, dept_id):
     current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M")
 
-    print("Alert!")
     hostUrl = config["hostUrl"]
     sendEmail(
         f"{hostUrl}{current_datetime}.wav",
@@ -281,7 +390,130 @@ def play_sound_and_bridge(audio_file_path):
     bridge_stream.close()
     print("Finished bridging audio.")
 
+def setup_user_management_tab(frame, root):
+    global selected_user_name_var, selected_user_email_var, selected_user_phone_var, selected_dept_var, user_listbox
 
+    selected_user_name_var = tk.StringVar(root)
+    selected_user_email_var = tk.StringVar(root)
+    selected_user_phone_var = tk.StringVar(root)
+    selected_dept_var = tk.StringVar(root)
+
+    ttk.Label(frame, text="User Management").grid(row=0, column=0, padx=5, pady=5)
+
+    user_listbox = Listbox(frame, height=15, width=50)
+    user_listbox.grid(row=1, column=0, padx=5, pady=5, rowspan=4)
+    user_listbox.bind('<<ListboxSelect>>', on_user_select)
+
+    ttk.Label(frame, text="Name:").grid(row=1, column=1, padx=5, pady=5, sticky='e')
+    user_name_entry = ttk.Entry(frame, textvariable=selected_user_name_var)
+    user_name_entry.grid(row=1, column=2, padx=5, pady=5, sticky='we')
+
+    ttk.Label(frame, text="Email:").grid(row=2, column=1, padx=5, pady=5, sticky='e')
+    user_email_entry = ttk.Entry(frame, textvariable=selected_user_email_var)
+    user_email_entry.grid(row=2, column=2, padx=5, pady=5, sticky='we')
+
+    ttk.Label(frame, text="Phone:").grid(row=3, column=1, padx=5, pady=5, sticky='e')
+    user_phone_entry = ttk.Entry(frame, textvariable=selected_user_phone_var)
+    user_phone_entry.grid(row=3, column=2, padx=5, pady=5, sticky='we')
+
+    def save_to_yaml(data, filename):
+        with open(filename, 'w') as file:
+            yaml.dump(data, file)
+
+    def refresh_user_listbox(user_listbox):
+        user_listbox.delete(0, 'end')
+        for dept_id, dept_info in departments.items():
+            user_listbox.insert('end', f"Department {dept_id}")
+            for user in dept_info['users']:
+                user_listbox.insert('end', f"  {user['name']} - {user['email']} - {user['phone']}")
+
+    def update_user(dept_id, old_user_info, new_user_info):
+        for user in departments[dept_id]['users']:
+            if user['name'] == old_user_info['name'] and user['email'] == old_user_info['email']:
+                user.update(new_user_info)
+                break
+        save_to_yaml(departments, 'db.yml')
+        refresh_user_listbox(user_listbox)
+
+    def delete_user(dept_id, user_info):
+        departments[dept_id]['users'] = [
+            user for user in departments[dept_id]['users']
+            if user['name'] != user_info['name'] or user['email'] != user_info['email']
+        ]
+        save_to_yaml(departments, 'db.yml')
+        refresh_user_listbox(user_listbox)
+
+    def save_user_changes():
+        selected_user = {
+            'name': selected_user_name_var.get(),
+            'email': selected_user_email_var.get(),
+            'phone': selected_user_phone_var.get()
+        }
+        updated_user = {
+            'name': user_name_entry.get(),
+            'email': user_email_entry.get(),
+            'phone': user_phone_entry.get()
+        }
+        selected_dept_id = selected_dept_var.get()
+
+        for user in departments[selected_dept_id]['users']:
+            if user['name'] == selected_user['name'] and user['email'] == selected_user['email']:
+                user['name'] = updated_user['name']
+                user['email'] = updated_user['email']
+                user['phone'] = updated_user['phone']
+                break
+
+        save_to_yaml(departments, 'db.yml')
+        refresh_user_listbox(user_listbox)
+
+    def delete_selected_user():
+        selected_user = {
+            'name': selected_user_name_var.get(),
+            'email': selected_user_email_var.get(),
+            'phone': selected_user_phone_var.get()
+        }
+        selected_dept_id = selected_dept_var.get()
+
+        departments[selected_dept_id]['users'] = [
+            user for user in departments[selected_dept_id]['users']
+            if not (user['name'] == selected_user['name'] and user['email'] == selected_user['email'])
+        ]
+
+        save_to_yaml(departments, 'db.yml')
+        refresh_user_listbox(user_listbox)
+
+    save_changes_button = ttk.Button(frame, text="Save Changes", command=save_user_changes)
+    save_changes_button.grid(row=5, column=2, padx=5, pady=5, sticky='e')
+
+    remove_user_button = ttk.Button(frame, text="Remove User", command=delete_selected_user)
+    remove_user_button.grid(row=5, column=2, padx=5, pady=5, sticky='w')
+
+    ttk.Label(frame, text="Select Department:").grid(row=0, column=2, padx=5, pady=5, sticky='e')
+    dept_dropdown = ttk.Combobox(frame, textvariable=selected_dept_var, state="readonly")
+    dept_dropdown['values'] = list(departments.keys())
+    dept_dropdown.grid(row=0, column=3, padx=5, pady=5, sticky='w')
+
+    refresh_user_listbox(user_listbox)
+
+
+def on_user_select(event):
+    try:
+        index = user_listbox.curselection()[0]
+        selected_item = user_listbox.get(index)
+
+        selected_user_name_var.set('')
+        selected_user_email_var.set('')
+        selected_user_phone_var.set('')
+
+        if ' - ' in selected_item:
+            user_details = selected_item.strip().split(' - ')
+            #print(user_details)
+            selected_user_name_var.set(user_details[0].strip(' -'))
+            selected_user_email_var.set(user_details[1].strip())
+            selected_user_phone_var.set(user_details[2].strip())
+
+    except IndexError:
+        pass
 
 def schmitt(data, rate):
     loudness = numpy.sqrt(numpy.sum((data / 32768.) ** 2)) / float(len(data))
@@ -375,7 +607,7 @@ def measure_tones():
             if wav.tell() >= wav.getnframes():
                 break
 
-        buf = numpy.fromstring(data, dtype=numpy.int16)
+        buf = numpy.frombuffer(data, dtype=numpy.int16)
         if channels == 2:
             buf = buf.reshape(-1, 2)
             buf = numpy.delete(buf, 1, axis=1)
@@ -405,6 +637,10 @@ def measure_tones():
                     else:
                         print("Tone out of sync detected. Resetting tones")
                     print("Detected: " + str(tone1) + " : " + str(tone2))
+                    tone1_box.delete(0, tk.END)
+                    tone2_box.delete(0, tk.END)
+                    tone1_box.insert(tk.END, str(round(tone1, 1)))
+                    tone2_box.insert(tk.END, str(round(tone2, 1)))
 
                     # print("INITIAL TONE: " + str(initial_tone_time))
                     # print("TIME: " + str(time.time()))
@@ -414,7 +650,10 @@ def measure_tones():
                         tone2_db = dept_info['tone2']
 
                         if isclose(tone1, tone1_db, abs_tol=15.0) and isclose(tone2, tone2_db, abs_tol=15.0):
-                            # Instead of directly handling the alert, put it in the queue
+                            # put it in the queue
+                            activeAlert.insert(tk.END, "ALERT -- DEPT ID: " + dept_id + " -- A: " + str(dept_info['tone1']) + " B: " + str(dept_info['tone2']) + "\n")
+                            flash_background(alert_frame)
+                            print(dept_info)
                             alert_queue.put((dept_id, dept_info))
 
         if initial_tone_time and (time.time() - initial_tone_time > 4):
@@ -443,16 +682,17 @@ def handle_alerts():
 
         alert_queue.task_done()
 
-   # if not wavfile:
-   #     stream.close()
-   #     pa.terminate()
-   # else:
-   #     wav.close()
-
-
 if __name__ == "__main__":
     try:
         all_statuses = {}
+        root = tk.Tk()
+        root.geometry("2000x1000")
+        #root.attributes("-fullscreen", True)
+        root.title("Tone Alert System")
+
+        setup_gui(root)
+
+
         if (config["serial"]["enable"]):
             ser = init_serial(config["serial"]["port"])
 
@@ -460,7 +700,11 @@ if __name__ == "__main__":
         tone_detection_thread.daemon = True
         tone_detection_thread.start()
 
-        handle_alerts()
+        handle_alerts_thread = threading.Thread(target=handle_alerts)
+        handle_alerts_thread.daemon = True
+        handle_alerts_thread.start()
+
+        root.mainloop()
 
     except KeyboardInterrupt:
         print("Exiting")
