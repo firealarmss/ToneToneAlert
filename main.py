@@ -141,14 +141,14 @@ def setup_gui(root):
     setup_audio_settings_tab(audio_settings_frame)
 
     ttk.Label(tone_frame, text="Tone 1:", font=custom_font).grid(row=0, column=0, padx=5)
-    tone1_box = ttk.Entry(tone_frame, style='TEntry', width=15, state='readonly')
+    tone1_box = ttk.Entry(tone_frame, style='TEntry', width=15)
     tone1_box.grid(row=0, column=1, padx=5)
-    tone1_box.state(['disabled'])
+    #  tone1_box.state([tk.DISABLED])
 
     ttk.Label(tone_frame, text="Tone 2:", font=custom_font).grid(row=1, column=0, padx=5)
     tone2_box = ttk.Entry(tone_frame, style='TEntry', width=15)
     tone2_box.grid(row=1, column=1, padx=5)
-    tone2_box.state(['disabled'])
+    #    tone2_box.state([tk.DISABLED])
 
     ttk.Label(alert_frame, text="Active Alert:", font=custom_font).grid(row=0, column=0, padx=5)
     activeAlert = tk.Text(alert_frame, height=15, width=50, font=custom_font)
@@ -726,10 +726,14 @@ def measure_tones():
                     else:
                         print("Tone out of sync detected. Resetting tones")
                     print("Detected: " + str(tone1) + " : " + str(tone2))
+                    # tone1_box.state([tk.NORMAL])
+                    # tone2_box.state([tk.NORMAL])
                     tone1_box.delete(0, tk.END)
                     tone2_box.delete(0, tk.END)
                     tone1_box.insert(tk.END, str(round(tone1, 1)))
                     tone2_box.insert(tk.END, str(round(tone2, 1)))
+                    # tone1_box.state(['disabled'])
+                    # tone2_box.state(['disabled'])
 
                     # print("INITIAL TONE: " + str(initial_tone_time))
                     # print("TIME: " + str(time.time()))
