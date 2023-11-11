@@ -1,4 +1,6 @@
-hostUrl: "http://127.0.0.1"
+hostUrl: "http://127.0.0.1" #Host url which is used by twilio for voice and included in text and email
+localAudioAlert: true #Set off a local alert tone and bridge audio for 25 seconds from alert
+disableAlerting: false #Disable all alerting and make the software just decode and encode tones
 
 socketLabs:
   enable: false
@@ -14,10 +16,8 @@ twilio:
 
 discord:
   enable: false
-  url: ""
+  url: "" #Discord webhook url
 
-serial:
+serial: #Im not really sure what serial devices are supported
   enable: false
   port: "COM1"
-
-localAudioAlert: true

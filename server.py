@@ -5,8 +5,9 @@ import os
 
 app = Flask(__name__)
 
-#@app.route('/', methods=['GET'])
-#def default():
+
+# @app.route('/', methods=['GET'])
+# def default():
 #    return send_file("")
 @app.route('/audio/<filename>', methods=['POST', 'GET'])
 def serve_audio(filename):
@@ -16,6 +17,7 @@ def serve_audio(filename):
     response.headers['Content-Type'] = 'audio/mp3'
     response.headers['Content-Disposition'] = f'inline; filename={filename}'
     return response
+
 
 @app.route('/add_department', methods=['GET', 'POST'])
 def add_department():
@@ -29,7 +31,6 @@ def add_department():
             'phone': request.form['phone']
         }
 
-        # Append new data to the YAML file.
         with open('db.yml', 'r') as file:
             departments = yaml.load(file, Loader=yaml.FullLoader)
 
@@ -47,5 +48,9 @@ def add_department():
     return render_template('add_department.html')
 
 
+@app.errorhandler(500)
+def internal_error(error):
+    return render_template('500.html'), 500
+
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=6060, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=False)

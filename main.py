@@ -38,7 +38,6 @@ import serial
 import numpy
 from playsound import playsound
 
-
 with open('db.yml', 'r') as file:
     departments = yaml.load(file, Loader=yaml.FullLoader)
 
@@ -96,7 +95,7 @@ stream = p.open(format=pyaudio.paInt16,
                 channels=1,
                 rate=44100,
                 input=True,
-                #output=True,
+                # output=True,
                 frames_per_buffer=chunk)
 
 
@@ -110,6 +109,7 @@ stream = p.open(format=pyaudio.paInt16,
 
 def on_button_click():
     pass
+
 
 def setup_gui(root):
     global activeAlert, tone1_box, tone2_box, user_management_frame, alert_frame, tone_frame
@@ -141,16 +141,23 @@ def setup_gui(root):
     setup_audio_settings_tab(audio_settings_frame)
 
     ttk.Label(tone_frame, text="Tone 1:", font=custom_font).grid(row=0, column=0, padx=5)
-    tone1_box = ttk.Entry(tone_frame, style='TEntry', width=15)
+    tone1_box = ttk.Entry(tone_frame, style='TEntry', width=15, state='readonly')
     tone1_box.grid(row=0, column=1, padx=5)
+    tone1_box.state(['disabled'])
 
     ttk.Label(tone_frame, text="Tone 2:", font=custom_font).grid(row=1, column=0, padx=5)
     tone2_box = ttk.Entry(tone_frame, style='TEntry', width=15)
     tone2_box.grid(row=1, column=1, padx=5)
+    tone2_box.state(['disabled'])
 
     ttk.Label(alert_frame, text="Active Alert:", font=custom_font).grid(row=0, column=0, padx=5)
     activeAlert = tk.Text(alert_frame, height=15, width=50, font=custom_font)
     activeAlert.grid(row=1, column=0, padx=5)
+
+    tone_gen_frame = ttk.Frame(notebook, padding="10")
+    notebook.add(tone_gen_frame, text='Generate Tones')
+    setup_tone_generation_tab(tone_gen_frame)
+
 
 def setup_audio_settings_tab(frame):
     global selected_mic_var, selected_speaker_var
@@ -187,14 +194,84 @@ def setup_audio_settings_tab(frame):
     save_button = ttk.Button(frame, text="Save Settings", command=save_audio_settings)
     save_button.grid(row=2, column=0, columnspan=2, padx=5, pady=5)
 
+
 def save_audio_settings():
     selected_mic = selected_mic_var.get()
     selected_speaker = selected_speaker_var.get()
     print(f"Selected Microphone: {selected_mic}")
     print(f"Selected Speaker: {selected_speaker}")
 
+
+def setup_tone_generation_tab(frame):
+    global tone_a_combobox, tone_b_combobox
+
+    tone_frequencies = [
+        330.5, 349.0, 368.5, 389.0, 410.8, 433.7, 457.9, 483.5, 510.5, 539.0,  # Group 1
+        569.1, 600.9, 634.5, 669.9, 707.3, 746.8, 788.5, 832.5, 879.0, 928.1,  # Group 2
+        288.5, 296.5, 304.7, 313.8, 953.7, 979.9, 1006.9, 1034.7, 1063.2, 1092.4,  # Group 3
+        321.7, 339.6, 358.6, 378.6, 399.8, 422.1, 445.7, 470.5, 496.8, 524.6,  # Group 4
+        553.9, 584.8, 617.4, 651.9, 688.3, 726.8, 767.4, 810.2, 855.5, 903.2,  # Group 5
+        1122.5, 1153.4, 1185.2, 1217.8, 1251.4, 1285.8, 1321.2, 1357.6, 1395.0, 1433.4,  # Group 6
+        1472.9, 1513.5, 1555.2, 1598.0, 1642.0, 1687.2, 1733.7, 1781.5, 1830.5, 1881.0,  # Group 10
+        1930.2, 1989.0, 2043.8, 2094.5, 2155.6, 2212.2, 2271.7, 2334.6, 2401.0, 2468.2,  # Group 11
+    ]
+
+    tone_a_label = ttk.Label(frame, text="Tone A Frequency (Hz):")
+    tone_a_label.grid(row=0, column=0, padx=5, pady=5)
+    tone_a_combobox = ttk.Combobox(frame, values=tone_frequencies, state="readonly")
+    tone_a_combobox.grid(row=0, column=1, padx=5, pady=5)
+
+    tone_b_label = ttk.Label(frame, text="Tone B Frequency (Hz):")
+    tone_b_label.grid(row=1, column=0, padx=5, pady=5)
+    tone_b_combobox = ttk.Combobox(frame, values=tone_frequencies, state="readonly")
+    tone_b_combobox.grid(row=1, column=1, padx=5, pady=5)
+
+    generate_button = ttk.Button(frame, text="Generate and Play Tones", command=generate_and_play_tones)
+    generate_button.grid(row=2, column=0, columnspan=2, padx=5, pady=5)
+
+    info_alert_button = ttk.Button(frame, text="Info Alert", command=play_info_alert)
+    info_alert_button.grid(row=2, column=5, columnspan=2, padx=5, pady=5)
+
+    info_cancel_button = ttk.Button(frame, text="Cancel Alert", command=play_cancel_alert)
+    info_cancel_button.grid(row=2, column=10, columnspan=2, padx=5, pady=5)
+
+
+def play_info_alert():
+    playsound('E:/ToneTonePage/sounds/info_tone.wav')
+
+
+def play_cancel_alert():
+    playsound('E:/ToneTonePage/sounds/cancel_tone.wav')
+
+
+def generate_and_play_tones():
+    tone_a_freq = float(tone_a_combobox.get())
+    tone_b_freq = float(tone_b_combobox.get())
+    sample_rate = 44100
+
+    t_a = numpy.linspace(0, 1, int(sample_rate), False)
+    t_b = numpy.linspace(0, 4, int(4 * sample_rate), False)
+    tone_a = numpy.sin(tone_a_freq * t_a * 2 * numpy.pi)
+    tone_b = numpy.sin(tone_b_freq * t_b * 2 * numpy.pi)
+
+    combined_tone = numpy.concatenate((tone_a, tone_b))
+
+    combined_tone *= 32767 / numpy.max(numpy.abs(combined_tone))
+    combined_tone = combined_tone.astype(numpy.int16)
+
+    p2 = pyaudio.PyAudio()
+    stream2 = p2.open(format=pyaudio.paInt16, channels=1, rate=sample_rate, output=True)
+
+    stream2.write(combined_tone)
+
+    stream2.stop_stream()
+    stream2.close()
+    p2.terminate()
+
+
 def init_serial(port, baudrate=9600):
     return serial.Serial(port, baudrate, timeout=1)
+
 
 def flash_background(frame):
     flash_duration = 5000
@@ -262,6 +339,7 @@ def convertToBase64(data):
 
     return f"data:audio/wav;base64,{base64_encoded.decode('utf-8')}"
 
+
 def save_audio_clip(dept_info):
     frames = []
 
@@ -300,6 +378,7 @@ def save_audio_clip(dept_info):
         phoneCall(f"{hostUrl}{current_datetime}.mp3", user['phone'], user['name'])
 
     return audio_file_path_wav
+
 
 def sendDiscordWebhook(dept_id):
     if (config["discord"]["enable"]):
@@ -363,12 +442,18 @@ def activateAlert(user, dept_id):
     current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M")
 
     hostUrl = config["hostUrl"]
+    sendText(
+        f"{hostUrl}{current_datetime}.wav",
+        user['phone'],
+        user['name']
+    )
     sendEmail(
         f"{hostUrl}{current_datetime}.wav",
         user['email'],
         user['name']
     )
     time.sleep(1)
+
 
 def play_sound_and_bridge(audio_file_path):
     playsound(audio_file_path)
@@ -389,6 +474,7 @@ def play_sound_and_bridge(audio_file_path):
     bridge_stream.stop_stream()
     bridge_stream.close()
     print("Finished bridging audio.")
+
 
 def setup_user_management_tab(frame, root):
     global selected_user_name_var, selected_user_email_var, selected_user_phone_var, selected_dept_var, user_listbox
@@ -507,13 +593,14 @@ def on_user_select(event):
 
         if ' - ' in selected_item:
             user_details = selected_item.strip().split(' - ')
-            #print(user_details)
+            # print(user_details)
             selected_user_name_var.set(user_details[0].strip(' -'))
             selected_user_email_var.set(user_details[1].strip())
             selected_user_phone_var.set(user_details[2].strip())
 
     except IndexError:
         pass
+
 
 def schmitt(data, rate):
     loudness = numpy.sqrt(numpy.sum((data / 32768.) ** 2)) / float(len(data))
@@ -560,7 +647,9 @@ def schmitt(data, rate):
 def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
     return abs(a - b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
 
+
 alert_queue = queue.Queue()
+
 
 def measure_tones():
     chunk = 2048
@@ -583,7 +672,7 @@ def measure_tones():
                          channels=channels,
                          rate=rate,
                          input=True,
-                         #output=True,
+                         # output=True,
                          #                 input_device_index=input_device_index,
                          frames_per_buffer=chunk)
     else:
@@ -645,16 +734,18 @@ def measure_tones():
                     # print("INITIAL TONE: " + str(initial_tone_time))
                     # print("TIME: " + str(time.time()))
                     # print("TIME - INITIAL" + str(initial_tone_time - time.time() < 1.5 ))
-                    for dept_id, dept_info in departments.items():
-                        tone1_db = dept_info['tone1']
-                        tone2_db = dept_info['tone2']
+                    if not config["disableAlerting"]:
+                        for dept_id, dept_info in departments.items():
+                            tone1_db = dept_info['tone1']
+                            tone2_db = dept_info['tone2']
 
-                        if isclose(tone1, tone1_db, abs_tol=15.0) and isclose(tone2, tone2_db, abs_tol=15.0):
-                            # put it in the queue
-                            activeAlert.insert(tk.END, "ALERT -- DEPT ID: " + dept_id + " -- A: " + str(dept_info['tone1']) + " B: " + str(dept_info['tone2']) + "\n")
-                            flash_background(alert_frame)
-                            print(dept_info)
-                            alert_queue.put((dept_id, dept_info))
+                            if isclose(tone1, tone1_db, abs_tol=15.0) and isclose(tone2, tone2_db, abs_tol=15.0):
+                                # put it in the queue
+                                activeAlert.insert(tk.END, "ALERT -- DEPT ID: " + dept_id + " -- A: " + str(
+                                    dept_info['tone1']) + " B: " + str(dept_info['tone2']) + "\n")
+                                flash_background(alert_frame)
+                                print(dept_info)
+                                alert_queue.put((dept_id, dept_info))
 
         if initial_tone_time and (time.time() - initial_tone_time > 4):
             # print("Tone out of sync detect. Reset.")
@@ -662,6 +753,7 @@ def measure_tones():
             tone2 = 0.0
             toneIndex = -1
             initial_tone_time = None
+
 
 def handle_alerts():
     while True:
@@ -682,16 +774,16 @@ def handle_alerts():
 
         alert_queue.task_done()
 
+
 if __name__ == "__main__":
     try:
         all_statuses = {}
         root = tk.Tk()
         root.geometry("2000x1000")
-        #root.attributes("-fullscreen", True)
+        # root.attributes("-fullscreen", True)
         root.title("Tone Alert System")
 
         setup_gui(root)
-
 
         if (config["serial"]["enable"]):
             ser = init_serial(config["serial"]["port"])
