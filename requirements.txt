@@ -1,0 +1,12 @@
+
+flask
+numpy
+pyaudio
+pydub
+playsound
+requests
+serial
+socketlabs-injectionapi
+twilio
+PyYAML
+tk
