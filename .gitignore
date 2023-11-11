@@ -3,3 +3,8 @@ audio_clips/*.wav
 db.yml
 config.yml
 *.exe
+*.spec
+dist/*
+dist/**
+build/*
+build/**
