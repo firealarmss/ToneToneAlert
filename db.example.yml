@@ -2,6 +2,7 @@
   tone1: 349.0
   tone2: 433.7
   relayNumber: 0 #Use 0 if not using serial
+  lightSwitchIp: '0' #Set to 0 if not using smart home stuff on this department
   users:
     - email: test@example.com
       name: Me
@@ -10,6 +11,7 @@
   tone1: 1006.1
   tone2: 510.5
   relayNumber: 1
+  lightSwitchIp: '192.168.1.242'
   users:
     - email: test@example.com
       name: Me

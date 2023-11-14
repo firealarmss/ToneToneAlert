@@ -21,3 +21,6 @@ discord:
 serial: #Im not really sure what serial devices are supported
   enable: false
   port: "COM1"
+
+smartHome: #Currently only Tp-Link Kasa switches are supported
+  enable: true

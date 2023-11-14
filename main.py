@@ -13,6 +13,7 @@ SQUELCH = -70.
 import sys
 import threading
 import queue
+import asyncio
 
 import tkinter as tk
 from tkinter import *
@@ -37,6 +38,7 @@ import yaml
 import serial
 import numpy
 from playsound import playsound
+from kasa import SmartPlug
 
 with open('db.yml', 'r') as file:
     departments = yaml.load(file, Loader=yaml.FullLoader)
@@ -272,6 +274,13 @@ def generate_and_play_tones():
 def init_serial(port, baudrate=9600):
     return serial.Serial(port, baudrate, timeout=1)
 
+async def control_light_switch(ip_address, command):
+    plug = SmartPlug(ip_address)
+    await plug.update()
+    if command == "on":
+        await plug.turn_on()
+    elif command == "off":
+        await plug.turn_off()
 
 def flash_background(frame):
     flash_duration = 5000
@@ -374,6 +383,10 @@ def save_audio_clip(dept_info):
     hostUrl = config["hostUrl"]
     if (config["serial"]["enable"] and not dept_info["relayNumber"] == 0):
         send_command(ser, "off", dept_info["relayNumber"])
+    if (config["smartHome"]["enable"] and dept_info["lightSwitchIp"] != 0):
+        if 'lightSwitchIp' in dept_info:
+            asyncio.run(control_light_switch(dept_info['lightSwitchIp'], 'off'))
+
     for user in dept_info['users']:
         phoneCall(f"{hostUrl}{current_datetime}.mp3", user['phone'], user['name'])
 
@@ -744,11 +757,16 @@ def measure_tones():
                             tone2_db = dept_info['tone2']
 
                             if isclose(tone1, tone1_db, abs_tol=15.0) and isclose(tone2, tone2_db, abs_tol=15.0):
+                                if config["serial"]["enable"]:
+                                    send_command(ser, "on", dept_info["relayNumber"])
+
+                                if (config["smartHome"]["enable"]) and ('lightSwitchIp' in dept_info):
+                                    asyncio.run(control_light_switch(dept_info['lightSwitchIp'], 'on'))
+
                                 # put it in the queue
                                 activeAlert.insert(tk.END, "ALERT -- DEPT ID: " + dept_id + " -- A: " + str(
                                     dept_info['tone1']) + " B: " + str(dept_info['tone2']) + "\n")
                                 flash_background(alert_frame)
-                                print(dept_info)
                                 alert_queue.put((dept_id, dept_info))
 
         if initial_tone_time and (time.time() - initial_tone_time > 4):
@@ -768,7 +786,7 @@ def handle_alerts():
                                             args=("E:/ToneTonePage/Minitor_alert.wav",))
             alert_thread.start()
 
-            sendDiscordWebhook(dept_id)
+        sendDiscordWebhook(dept_id)
 
         if (config["serial"]["enable"] and not dept_info["relayNumber"] == 0):
             send_command(ser, "on", dept_info["relayNumber"])
