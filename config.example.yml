@@ -1,6 +1,7 @@
 hostUrl: "http://127.0.0.1" #Host url which is used by twilio for voice and included in text and email
 localAudioAlert: true #Set off a local alert tone and bridge audio for 25 seconds from alert
 disableAlerting: false #Disable all alerting and make the software just decode and encode tones
+smallScreen: true #Variable made for RPI screens. Will set the size to 480x320
 
 socketLabs:
   enable: false
@@ -23,4 +24,4 @@ serial: #Im not really sure what serial devices are supported
   port: "COM1"
 
 smartHome: #Currently only Tp-Link Kasa switches are supported
-  enable: true
+  enable: false

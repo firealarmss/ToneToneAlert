@@ -38,7 +38,7 @@ import yaml
 import serial
 import numpy
 from playsound import playsound
-from kasa import SmartPlug
+from kasa import SmartPlug, SmartBulb, SmartLightStrip
 
 with open('db.yml', 'r') as file:
     departments = yaml.load(file, Loader=yaml.FullLoader)
@@ -274,13 +274,34 @@ def generate_and_play_tones():
 def init_serial(port, baudrate=9600):
     return serial.Serial(port, baudrate, timeout=1)
 
+
 async def control_light_switch(ip_address, command):
     plug = SmartPlug(ip_address)
-    await plug.update()
-    if command == "on":
-        await plug.turn_on()
-    elif command == "off":
-        await plug.turn_off()
+    try:
+        await plug.update()
+        if command == "on":
+            await plug.turn_on()
+        elif command == "off":
+            await plug.turn_off()
+    except Exception as e:
+        print(f"Error controlling KASA Switch at {ip_address}: {e}")
+
+
+async def control_kasa_light_strip(device_ip, brightness, color, state):
+    bulb = SmartLightStrip(device_ip)
+
+    try:
+        await bulb.update()
+        if state == "on":
+            await bulb.turn_on()
+            await bulb.set_brightness(brightness)
+            await bulb.set_hsv(color[0], color[1], color[2])
+        elif state == "off":
+            await bulb.turn_off()
+        await bulb.update()
+    except Exception as e:
+        print(f"Error controlling KASA LED light strip at {device_ip}: {e}")
+
 
 def flash_background(frame):
     flash_duration = 5000
@@ -349,7 +370,7 @@ def convertToBase64(data):
     return f"data:audio/wav;base64,{base64_encoded.decode('utf-8')}"
 
 
-def save_audio_clip(dept_info):
+async def save_audio_clip(dept_info):
     frames = []
 
     current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M")
@@ -381,11 +402,24 @@ def save_audio_clip(dept_info):
 
     final_audio.export(audio_file_path_mp3, format="mp3")
     hostUrl = config["hostUrl"]
-    if (config["serial"]["enable"] and not dept_info["relayNumber"] == 0):
+    if config["serial"]["enable"] and not dept_info["relayNumber"] == 0:
         send_command(ser, "off", dept_info["relayNumber"])
-    if (config["smartHome"]["enable"] and dept_info["lightSwitchIp"] != 0):
-        if 'lightSwitchIp' in dept_info:
-            asyncio.run(control_light_switch(dept_info['lightSwitchIp'], 'off'))
+
+    if config["smartHome"]["enable"]:
+        switch_tasks = []
+        bulb_tasks = []
+
+        for device in dept_info["smartHomeDevices"]:
+            if device["type"] == "switch":
+                switch_task = asyncio.create_task(
+                    control_light_switch(device['ip'], 'off'))
+                switch_tasks.append(switch_task)
+            elif device["type"] == "bulb":
+                bulb_task = asyncio.create_task(
+                    control_kasa_light_strip(device["ip"], 1, (0, 100, 40), "off"))
+                bulb_tasks.append(bulb_task)
+
+        await asyncio.gather(*bulb_tasks, *switch_tasks)
 
     for user in dept_info['users']:
         phoneCall(f"{hostUrl}{current_datetime}.mp3", user['phone'], user['name'])
@@ -664,7 +698,7 @@ def isclose(a, b, rel_tol=1e-09, abs_tol=0.0):
 alert_queue = queue.Queue()
 
 
-def measure_tones():
+async def measure_tones():
     chunk = 2048
     initial_tone_time = None
 
@@ -760,8 +794,28 @@ def measure_tones():
                                 if config["serial"]["enable"]:
                                     send_command(ser, "on", dept_info["relayNumber"])
 
-                                if (config["smartHome"]["enable"]) and ('lightSwitchIp' in dept_info):
-                                    asyncio.run(control_light_switch(dept_info['lightSwitchIp'], 'on'))
+                                if config["smartHome"]["enable"]:
+                                    if 'smartHomeDevices' in dept_info:
+                                        if config["smartHome"]["enable"]:
+                                            switch_tasks = []
+                                            bulb_tasks = []
+
+                                            for device in dept_info["smartHomeDevices"]:
+                                                if device["type"] == "switch":
+                                                    print("here")
+                                                    switch_task = asyncio.create_task(
+                                                        control_light_switch(device['ip'], 'on'))
+                                                    switch_tasks.append(switch_task)
+                                                elif device["type"] == "bulb":
+                                                    print("here2")
+                                                    bulb_task = asyncio.create_task(
+                                                        control_kasa_light_strip(device["ip"], 100,
+                                                                                 (0, 100, 40), "on"))
+                                                    bulb_tasks.append(bulb_task)
+
+                                            print("here3")
+
+                                            await asyncio.gather(*bulb_tasks, *switch_tasks)
 
                                 # put it in the queue
                                 activeAlert.insert(tk.END, "ALERT -- DEPT ID: " + dept_id + " -- A: " + str(
@@ -777,7 +831,7 @@ def measure_tones():
             initial_tone_time = None
 
 
-def handle_alerts():
+async def handle_alerts():
     while True:
         dept_id, dept_info = alert_queue.get()
 
@@ -792,7 +846,7 @@ def handle_alerts():
             send_command(ser, "on", dept_info["relayNumber"])
             for user in dept_info['users']:
                 activateAlert(user, dept_id)
-        audio_path_wav = save_audio_clip(dept_info)
+        audio_path_wav = await save_audio_clip(dept_info)
 
         alert_queue.task_done()
 
@@ -801,7 +855,10 @@ if __name__ == "__main__":
     try:
         all_statuses = {}
         root = tk.Tk()
-        root.geometry("2000x1000")
+        if (config["smallScreen"]):
+            root.geometry("480x320")
+        else:
+            root.geometry("2000x1000")
         # root.attributes("-fullscreen", True)
         root.title("Tone Alert System")
 
@@ -810,11 +867,11 @@ if __name__ == "__main__":
         if (config["serial"]["enable"]):
             ser = init_serial(config["serial"]["port"])
 
-        tone_detection_thread = threading.Thread(target=measure_tones)
+        tone_detection_thread = threading.Thread(target=lambda: asyncio.run(measure_tones()))
         tone_detection_thread.daemon = True
         tone_detection_thread.start()
 
-        handle_alerts_thread = threading.Thread(target=handle_alerts)
+        handle_alerts_thread = threading.Thread(target=lambda: asyncio.run(handle_alerts()))
         handle_alerts_thread.daemon = True
         handle_alerts_thread.start()
 

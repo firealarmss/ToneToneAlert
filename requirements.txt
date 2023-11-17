@@ -10,3 +10,4 @@ socketlabs-injectionapi
 twilio
 PyYAML
 tk
+python-kasa
