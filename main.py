@@ -153,7 +153,12 @@ def setup_gui(root):
     #    tone2_box.state([tk.DISABLED])
 
     ttk.Label(alert_frame, text="Active Alert:", font=custom_font).grid(row=0, column=0, padx=5)
-    activeAlert = tk.Text(alert_frame, height=15, width=50, font=custom_font)
+
+    if config["smallScreen"]:
+        activeAlert = tk.Text(alert_frame, height=15, width=30, font=custom_font)
+    else:
+        activeAlert = tk.Text(alert_frame, height=15, width=50, font=custom_font)
+
     activeAlert.grid(row=1, column=0, padx=5)
 
     tone_gen_frame = ttk.Frame(notebook, padding="10")
