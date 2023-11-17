@@ -2,6 +2,7 @@ hostUrl: "http://127.0.0.1" #Host url which is used by twilio for voice and incl
 localAudioAlert: true #Set off a local alert tone and bridge audio for 25 seconds from alert
 disableAlerting: false #Disable all alerting and make the software just decode and encode tones
 smallScreen: true #Variable made for RPI screens. Will set the size to 480x320
+softwareDirectory: "C:/Users/user_name/ToneToneAlert/" #Full path
 
 socketLabs:
   enable: false
@@ -19,7 +20,7 @@ discord:
   enable: false
   url: "" #Discord webhook url
 
-serial: #Im not really sure what serial devices are supported
+serial: #I'm not really sure what serial devices are supported
   enable: false
   port: "COM1"
 

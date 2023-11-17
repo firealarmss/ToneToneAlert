@@ -239,11 +239,11 @@ def setup_tone_generation_tab(frame):
 
 
 def play_info_alert():
-    playsound('E:/ToneTonePage/sounds/info_tone.wav')
+    playsound(config["softwareDirectory"] + 'sounds/info_tone.wav')
 
 
 def play_cancel_alert():
-    playsound('E:/ToneTonePage/sounds/cancel_tone.wav')
+    playsound(config["softwareDirectory"] + 'sounds/cancel_tone.wav')
 
 
 def generate_and_play_tones():
@@ -837,7 +837,7 @@ async def handle_alerts():
 
         if config['localAudioAlert']:
             alert_thread = threading.Thread(target=play_sound_and_bridge,
-                                            args=("E:/ToneTonePage/Minitor_alert.wav",))
+                                            args=(config["softwareDirectory"] + "Minitor_alert.wav",))
             alert_thread.start()
 
         sendDiscordWebhook(dept_id)
