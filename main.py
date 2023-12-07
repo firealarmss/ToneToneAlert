@@ -849,8 +849,9 @@ async def handle_alerts():
 
         if (config["serial"]["enable"] and not dept_info["relayNumber"] == 0):
             send_command(ser, "on", dept_info["relayNumber"])
-            for user in dept_info['users']:
-                activateAlert(user, dept_id)
+
+        for user in dept_info['users']:
+            activateAlert(user, dept_id)
         audio_path_wav = await save_audio_clip(dept_info)
 
         alert_queue.task_done()
